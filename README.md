@@ -52,20 +52,20 @@
 当前仓库中的 `src/lib/kv.ts` 采用的是如下策略：
 
 1. **本地开发**：回退到项目根目录的 `.kv-store.json` 文件。
-2. **EdgeOne Pages 生产环境**：由 Next.js 路由通过内部桥接接口访问 `edge-functions/internal/kv/[operation].js`，再由 Edge Functions 使用绑定变量名 `__EDGE_KV__` 直接读写 Pages KV。
+2. **EdgeOne Pages 生产环境**：由 Next.js 路由通过内部桥接接口访问 `edge-functions/internal/kv/[operation].js`，再由 Edge Functions 使用绑定变量名 `EDGE_KV` 直接读写 Pages KV。
 
 这意味着：
 
 - 当前代码**并不会读取** `KV_REST_API_URL`、`KV_REST_API_TOKEN` 这类 Upstash / Vercel KV 环境变量；README 旧版本在这里的描述与仓库当前实现不一致。
 - EdgeOne Pages 官方文档当前说明：**Pages KV 目前仅支持在 Edge Functions 中调用**。
 - 因此，本项目已改为 **Next.js API Route -> Edge Functions KV Bridge -> EdgeOne Pages KV** 的结构，避免在 Next.js 运行时中直接访问 KV。
-- EdgeOne 控制台绑定命名空间时，请将 **Variable Name** 设置为 `__EDGE_KV__`，以匹配桥接函数的读取方式。
+- EdgeOne 控制台绑定命名空间时，请将 **Variable Name** 设置为 `EDGE_KV`，以匹配桥接函数的读取方式。
 - 桥接接口默认地址是 `/internal/kv/*`；生产环境建议配置 `KV_BRIDGE_SECRET` 保护该内部接口。
 
 #### EdgeOne Pages 生产部署要求
 
 1. 在项目的 **KV Storage** 页面绑定目标命名空间。
-2. 绑定时将 **Variable Name** 填写为 `__EDGE_KV__`。
+2. 绑定时将 **Variable Name** 填写为 `EDGE_KV`。
 3. 在环境变量中配置 `KV_BRIDGE_SECRET`，并确保 Edge Functions 与 Next.js 路由使用同一份值。
 4. 如果站点运行在特殊反向代理或自定义域名推断不稳定的环境中，再额外配置 `KV_BRIDGE_ORIGIN`。
 
