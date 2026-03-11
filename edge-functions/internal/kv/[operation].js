@@ -1,5 +1,5 @@
 function getKVBinding(context) {
-  return context.env?.__EDGE_KV__ ?? globalThis.__EDGE_KV__ ?? null;
+  return context.env?.EDGE_KV ?? context.env?.__EDGE_KV__ ?? globalThis.EDGE_KV ?? globalThis.__EDGE_KV__ ?? null;
 }
 
 function json(data, status = 200) {
@@ -53,7 +53,14 @@ export async function onRequest(context) {
 
   try {
     if (operation === "status") {
-      return json({ success: true, data: { backend: "edge", writable: true } });
+      return json({
+        success: true,
+        data: {
+          backend: "edge",
+          writable: true,
+          binding: context.env?.EDGE_KV ? "EDGE_KV" : context.env?.__EDGE_KV__ ? "__EDGE_KV__" : "global",
+        },
+      });
     }
 
     if (operation === "get") {

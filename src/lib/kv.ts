@@ -47,9 +47,10 @@ interface EdgeKVNamespace {
 }
 
 function getEdgeKV(): EdgeKVNamespace | null {
-    // EdgeOne Pages injects a global KV namespace.
-    // Adapt this to your actual binding name.
     const g = globalThis as Record<string, unknown>;
+    if (g.EDGE_KV) {
+        return g.EDGE_KV as EdgeKVNamespace;
+    }
     if (g.__EDGE_KV__) {
         return g.__EDGE_KV__ as EdgeKVNamespace;
     }
