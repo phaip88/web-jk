@@ -40,8 +40,8 @@ function LoginForm() {
 
     return (
         <form className="glass-card login-card" onSubmit={handleSubmit}>
-            <h1>🔐 管理后台</h1>
-            <p className="subtitle">请输入管理员账号登录</p>
+            <h1>🔐 系统登录</h1>
+            <p className="subtitle">访问站点后请先登录，再进入管理后台</p>
 
             <div className="form-group">
                 <label className="form-label" htmlFor="login-user">
@@ -98,7 +98,7 @@ function LoginForm() {
                     fontSize: "0.8125rem",
                 }}
             >
-                <a href="/" style={{ color: "var(--text-muted)" }}>
+                <a href="/status" style={{ color: "var(--text-muted)" }}>
                     ← 返回状态页
                 </a>
             </div>
