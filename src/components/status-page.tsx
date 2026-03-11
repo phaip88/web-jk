@@ -237,7 +237,7 @@ export default function StatusPage() {
 
       <footer className="footer">
         <div className="container">
-          Powered by <strong>Uptime Monitor</strong> · Serverless Edge Monitoring
+          由 <strong>Uptime Monitor</strong> 提供支持 · Serverless 边缘监控
         </div>
       </footer>
     </>
