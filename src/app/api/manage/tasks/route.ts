@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kv } from "@/lib/kv";
+import { kv, getResolvedKVStatus, KVStorageUnavailableError } from "@/lib/kv";
 import { TaskConfig, TaskCreateInput, ApiResponse } from "@/types";
 import { randomUUID } from "crypto";
 import { normalizeMonitorUrl } from "@/lib/url";
@@ -15,10 +15,19 @@ export async function GET() {
             if (task) tasks.push(task);
         }
 
-        return NextResponse.json({ success: true, data: tasks } satisfies ApiResponse);
-    } catch {
+        return NextResponse.json({
+            success: true,
+            data: {
+                tasks,
+                storage: await getResolvedKVStatus(),
+            },
+        } satisfies ApiResponse);
+    } catch (error) {
         return NextResponse.json(
-            { success: false, error: "获取任务列表失败" } satisfies ApiResponse,
+            {
+                success: false,
+                error: error instanceof Error ? error.message : "获取任务列表失败",
+            } satisfies ApiResponse,
             { status: 500 }
         );
     }
@@ -83,10 +92,14 @@ export async function POST(request: NextRequest) {
             { success: true, data: task } satisfies ApiResponse,
             { status: 201 }
         );
-    } catch {
+    } catch (error) {
+        const status = error instanceof KVStorageUnavailableError ? 503 : 500;
         return NextResponse.json(
-            { success: false, error: "创建任务失败" } satisfies ApiResponse,
-            { status: 500 }
+            {
+                success: false,
+                error: error instanceof Error ? error.message : "创建任务失败",
+            } satisfies ApiResponse,
+            { status }
         );
     }
 }
@@ -114,10 +127,14 @@ export async function DELETE(request: NextRequest) {
         await kv.delete(`log:${id}`);
 
         return NextResponse.json({ success: true, data: { deleted: id } } satisfies ApiResponse);
-    } catch {
+    } catch (error) {
+        const status = error instanceof KVStorageUnavailableError ? 503 : 500;
         return NextResponse.json(
-            { success: false, error: "删除任务失败" } satisfies ApiResponse,
-            { status: 500 }
+            {
+                success: false,
+                error: error instanceof Error ? error.message : "删除任务失败",
+            } satisfies ApiResponse,
+            { status }
         );
     }
 }

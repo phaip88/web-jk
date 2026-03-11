@@ -43,9 +43,11 @@ function scheduleLabel(s: string): string {
 function TaskFormModal({
     onClose,
     onCreated,
+    disabled,
 }: {
     onClose: () => void;
     onCreated: () => void;
+    disabled: boolean;
 }) {
     const [form, setForm] = useState<TaskCreateInput>({
         name: "",
@@ -59,6 +61,10 @@ function TaskFormModal({
 
     async function handleSubmit(e: FormEvent) {
         e.preventDefault();
+        if (disabled) {
+            setError("当前部署未配置可写持久化存储，暂时无法创建任务。");
+            return;
+        }
         setError("");
         setLoading(true);
 
@@ -301,6 +307,8 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function AdminPage() {
     const [tasks, setTasks] = useState<TaskConfig[]>([]);
+    const [storageWarning, setStorageWarning] = useState("");
+    const [storageWritable, setStorageWritable] = useState(true);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [expandedTask, setExpandedTask] = useState<string | null>(null);
@@ -316,7 +324,16 @@ export default function AdminPage() {
                 return;
             }
             const data = await res.json();
-            if (data.success) setTasks(data.data);
+            if (data.success) {
+                setTasks(data.data.tasks);
+                if (data.data.storage?.writable === false) {
+                    setStorageWritable(false);
+                    setStorageWarning("当前部署未配置可写持久化存储，新增或删除任务会失败。请先绑定平台 KV 或外部数据库。");
+                } else {
+                    setStorageWritable(true);
+                    setStorageWarning("");
+                }
+            }
         } catch (err) {
             console.error("Failed to fetch tasks:", err);
         } finally {
@@ -436,11 +453,25 @@ export default function AdminPage() {
                         <button
                             className="btn btn-primary"
                             onClick={() => setShowModal(true)}
+                            disabled={!storageWritable}
                         >
                             ➕ 添加任务
                         </button>
                     </div>
                 </div>
+
+                {storageWarning && (
+                    <div
+                        className="glass-card"
+                        style={{
+                            marginBottom: 24,
+                            borderColor: "rgba(255, 184, 77, 0.45)",
+                            color: "var(--warning)",
+                        }}
+                    >
+                        {storageWarning}
+                    </div>
+                )}
 
                 {/* Stats */}
                 <div className="admin-stats">
@@ -478,8 +509,9 @@ export default function AdminPage() {
                         <button
                             className="btn btn-primary btn-sm"
                             onClick={() => setShowModal(true)}
+                            disabled={!storageWritable}
                         >
-                            创建第一个任务
+                            {storageWritable ? "创建第一个任务" : "当前部署不可写"}
                         </button>
                     </div>
                 ) : (
@@ -556,7 +588,7 @@ export default function AdminPage() {
             {/* Footer */}
             <footer className="footer">
                 <div className="container">
-                    Powered by <strong>Uptime Monitor</strong> · Serverless Edge Monitoring
+                    由 <strong>Uptime Monitor</strong> 提供支持 · Serverless 边缘监控
                 </div>
             </footer>
 
@@ -565,6 +597,7 @@ export default function AdminPage() {
                 <TaskFormModal
                     onClose={() => setShowModal(false)}
                     onCreated={fetchTasks}
+                    disabled={!storageWritable}
                 />
             )}
         </>
