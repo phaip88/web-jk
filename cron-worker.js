@@ -14,7 +14,7 @@
  */
 
 // 根据云函数供应商的不同，入口函数签名可能稍有差异，此处提供标准的 Node.js 异步函数示例
-exports.main_handler = async (event, context) => {
+exports.main_handler = async () => {
     const cronUrl = process.env.MONITOR_CRON_URL;
 
     if (!cronUrl) {
