@@ -31,6 +31,24 @@
 
 ---
 
+## ⚙️ 环境变量配置说明 (重要)
+
+无论您采用上述哪种部署方案，欲使本项目正常运作，都必须正确配置环境变量（在本地运行即根目录的 `.env.local` 文件，云平台上通常在“环境配置”或“Variables”区域进行设置）：
+
+| 变量名 | 必填 | 作用描述 | 示例值 |
+|---|:---:|---|---|
+| **ADMIN_USER** | **是** | 管理后台的登录账号名称。 | `admin` |
+| **ADMIN_PASS** | **是** | 管理后台的登录账号密码。 | `admin123` |
+| **JWT_SECRET** | **是** | 用于生成用户会话加密 Token，请在生产环境务必修改为一个长随机字符串，泄露将导致未授权者访问！ | `my-super-secret-key-2024` |
+| **TG_BOT_TOKEN** | *否* | 用于向 Telegram 发送报警通知的 Bot Token，前往 @BotFather 申请。如果不配置，系统将跳过 TG 报警环节。 | `123456:ABC-DEF1234ghIkl-zyx5` |
+| **TG_CHAT_ID** | *否* | 用于接收 TG 通知消息的频道或个人 ID。可向 @userinfobot 发消息获取自己的 ID。 | `78411234` |
+| **KV_REST_API_URL** | **是** | Serverless / Edge 环境下的键值存储连接（如 Vercel KV、Upstash Redis 的 REST URL）。 | `https://your-kv-url.upstash.io` |
+| **KV_REST_API_TOKEN** | **是** | 上述 KV 数据库对应的访问 Token 凭证。 | `AYZcABCDE...` |
+
+*(注：系统中的监控任务列表、拨测状态记录均存放在对应的 KV 数据库中，请务必保证 KV 的连接信息正确注入。)*
+
+---
+
 ## ⏱️ 定时业务保活与心跳部署机制 (重点说明)
 
 Serverless/Edge 服务通常是没有常驻进程的，因此我们**无法通过启动一个持续运行的 `setInterval` 来轮询检查任务**。
