@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { kv } from "@/lib/kv";
 import { TaskConfig, TaskCreateInput, ApiResponse } from "@/types";
 import { randomUUID } from "crypto";
+import { normalizeMonitorUrl } from "@/lib/url";
 
 // GET /api/manage/tasks - List all tasks
 export async function GET() {
@@ -35,12 +36,16 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Validate URL
+        let normalizedUrl = "";
+
         try {
-            new URL(body.url);
-        } catch {
+            normalizedUrl = normalizeMonitorUrl(body.url);
+        } catch (error) {
             return NextResponse.json(
-                { success: false, error: "无效的 URL 格式" } satisfies ApiResponse,
+                {
+                    success: false,
+                    error: error instanceof Error ? error.message : "无效的 URL 格式",
+                } satisfies ApiResponse,
                 { status: 400 }
             );
         }
@@ -51,7 +56,7 @@ export async function POST(request: NextRequest) {
         const task: TaskConfig = {
             id,
             name: body.name,
-            url: body.url,
+            url: normalizedUrl,
             method: body.method || "GET",
             schedule: body.schedule || "5m",
             notifyRule: body.notifyRule || "on_fail",

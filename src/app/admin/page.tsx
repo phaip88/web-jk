@@ -109,12 +109,16 @@ function TaskFormModal({
                     <input
                         id="task-url"
                         className="form-input"
-                        type="url"
-                        placeholder="https://example.com"
+                        type="text"
+                        inputMode="url"
+                        placeholder="example.com:8080/health 或 https://example.com"
                         value={form.url}
                         onChange={(e) => setForm({ ...form, url: e.target.value })}
                         required
                     />
+                    <div style={{ marginTop: 8, color: "var(--text-muted)", fontSize: "0.8125rem" }}>
+                        支持 http/https、裸域名、IP、端口和路径；未填写协议时默认按 http:// 处理。
+                    </div>
                 </div>
 
                 <div className="form-row">
@@ -301,6 +305,7 @@ export default function AdminPage() {
     const [showModal, setShowModal] = useState(false);
     const [expandedTask, setExpandedTask] = useState<string | null>(null);
     const [cronLoading, setCronLoading] = useState(false);
+    const [tgTestLoading, setTgTestLoading] = useState(false);
     const router = useRouter();
 
     const fetchTasks = useCallback(async () => {
@@ -356,6 +361,23 @@ export default function AdminPage() {
         router.push("/login");
     }
 
+    async function handleTelegramTest() {
+        setTgTestLoading(true);
+        try {
+            const res = await fetch("/api/manage/telegram-test", { method: "POST" });
+            const data = await res.json();
+            if (data.success) {
+                alert("Telegram 测试通知已发送，请检查目标会话。");
+            } else {
+                alert(data.error || "Telegram 测试通知发送失败");
+            }
+        } catch {
+            alert("网络错误");
+        } finally {
+            setTgTestLoading(false);
+        }
+    }
+
     // Stats
     const upCount = tasks.filter((t) => t.status === "up").length;
     const downCount = tasks.filter((t) => t.status === "down").length;
@@ -370,7 +392,7 @@ export default function AdminPage() {
                         Uptime Monitor
                     </div>
                     <div className="navbar-links">
-                        <a href="/" className="btn btn-secondary btn-sm">
+                        <a href="/status" className="btn btn-secondary btn-sm">
                             状态页
                         </a>
                         <button className="btn btn-secondary btn-sm" onClick={handleLogout}>
@@ -385,6 +407,19 @@ export default function AdminPage() {
                 <div className="admin-header">
                     <h1>📊 管理后台</h1>
                     <div style={{ display: "flex", gap: 12 }}>
+                        <button
+                            className="btn btn-secondary"
+                            onClick={handleTelegramTest}
+                            disabled={tgTestLoading}
+                        >
+                            {tgTestLoading ? (
+                                <>
+                                    <span className="spinner" /> 发送中...
+                                </>
+                            ) : (
+                                "📨 测试 TG 通知"
+                            )}
+                        </button>
                         <button
                             className="btn btn-secondary"
                             onClick={handleCronTrigger}

@@ -24,6 +24,35 @@ function formatTimestamp(ts: number): string {
     return dayjs(ts).tz("Asia/Shanghai").format("YYYY-MM-DD HH:mm:ss");
 }
 
+async function sendTelegramMessage(text: string): Promise<boolean> {
+    const { botToken, chatId } = getConfig();
+    if (!botToken || !chatId) {
+        console.warn("[Telegram] 未配置 TG_BOT_TOKEN 或 TG_CHAT_ID，跳过通知。");
+        return false;
+    }
+
+    try {
+        const response = await fetch(`${TG_API}/bot${botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                chat_id: chatId,
+                text,
+                parse_mode: "Markdown",
+            }),
+        });
+
+        if (!response.ok) {
+            console.error(`[Telegram] 发送失败: ${response.status} ${response.statusText}`);
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error("[Telegram] 发送异常:", error);
+        return false;
+    }
+}
+
 function buildMessage(result: CronResult): string {
     const statusEmoji = result.success ? "✅" : "🚨";
     const statusText = result.success ? "成功" : "失败";
@@ -63,34 +92,22 @@ function buildMessage(result: CronResult): string {
 }
 
 export async function sendTelegramNotification(result: CronResult): Promise<boolean> {
-    const { botToken, chatId } = getConfig();
-    if (!botToken || !chatId) {
-        console.warn("[Telegram] 未配置 TG_BOT_TOKEN 或 TG_CHAT_ID，跳过通知。");
-        return false;
-    }
-
     const message = buildMessage(result);
 
-    try {
-        const response = await fetch(`${TG_API}/bot${botToken}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                chat_id: chatId,
-                text: message,
-                parse_mode: "Markdown",
-            }),
-        });
+    return sendTelegramMessage(message);
+}
 
-        if (!response.ok) {
-            console.error(`[Telegram] 发送失败: ${response.status} ${response.statusText}`);
-            return false;
-        }
-        return true;
-    } catch (error) {
-        console.error("[Telegram] 发送异常:", error);
-        return false;
-    }
+export async function sendTelegramTestNotification(): Promise<boolean> {
+    const message = `🧪 *Telegram 通知测试*
+
+*任务名称*：配置自检
+*监控地址*：\`manual://telegram-test\`
+*运行状态*：✅ 成功
+*响应时间*：0ms
+
+⏱ *发生时间*：${formatTimestamp(Date.now())}`;
+
+    return sendTelegramMessage(message);
 }
 
 export { buildMessage };
