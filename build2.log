@@ -1,0 +1,26 @@
+Γû▓ Next.js 16.1.6 (Turbopack)
+ΓÜá The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+- Environments: .env.local
+
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 50s
+  Running TypeScript ...
+  Collecting page data using 1 worker ...
+  Generating static pages using 1 worker (0/11) ...
+  Generating static pages using 1 worker (2/11) 
+  Generating static pages using 1 worker (5/11) 
+  Generating static pages using 1 worker (8/11) 
+Γ¿» useSearchParams() should be wrapped in a suspense boundary at page "/login". Read more: https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
+    at Q (C:\test\.next\server\chunks\ssr\node_modules_cf1f3d2c._.js:2:2111)
+    at o (C:\test\.next\server\chunks\ssr\node_modules_cf1f3d2c._.js:4:5284)
+    at e (C:\test\.next\server\chunks\ssr\[root-of-the-server]__24ebf687._.js:1:1410)
+    at an (C:\test\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:84360)
+    at ai (C:\test\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:86179)
+    at al (C:\test\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:107953)
+    at as (C:\test\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:105368)
+    at aa (C:\test\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:84712)
+    at ai (C:\test\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:86228)
+    at ai (C:\test\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.prod.js:2:104708)
+Error occurred prerendering page "/login". Read more: https://nextjs.org/docs/messages/prerender-error
+Export encountered an error on /login/page: /login, exiting the build.
+Γ¿» Next.js build worker exited with code: 1 and signal: null

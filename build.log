@@ -1,0 +1,21 @@
+Γû▓ Next.js 16.1.6 (Turbopack)
+- Environments: .env.local
+
+ΓÜá The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 50s
+  Running TypeScript ...
+Failed to compile.
+
+./src/app/api/cron/route.ts:44:42
+Type error: Property 'value' does not exist on type 'PromiseSettledResult<PingResult>'.
+  Property 'value' does not exist on type 'PromiseRejectedResult'.
+
+[0m [90m 42 |[39m                 [36mconst[39m pingResult [33m=[39m
+ [90m 43 |[39m                     pingResults[j][33m.[39mstatus [33m===[39m [32m"fulfilled"[39m
+[31m[1m>[22m[39m[90m 44 |[39m                         [33m?[39m pingResults[j][33m.[39mvalue
+ [90m    |[39m                                          [31m[1m^[22m[39m
+ [90m 45 |[39m                         [33m:[39m {
+ [90m 46 |[39m                             statusCode[33m:[39m [36mnull[39m[33m,[39m
+ [90m 47 |[39m                             responseTime[33m:[39m [35m0[39m[33m,[39m[0m
+Next.js build worker exited with code: 1 and signal: null
