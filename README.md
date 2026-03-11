@@ -44,32 +44,30 @@
 | **JWT_SECRET** | **是** | 用于生成用户会话加密 Token，请在生产环境务必修改为一个长随机字符串，泄露将导致未授权者访问！ | `my-super-secret-key-2024` |
 | **TG_BOT_TOKEN** | *否* | 用于向 Telegram 发送报警通知的 Bot Token，前往 @BotFather 申请。如果不配置，系统将跳过 TG 报警环节。 | `123456:ABC-DEF1234ghIkl-zyx5` |
 | **TG_CHAT_ID** | *否* | 用于接收 TG 通知消息的频道或个人 ID。可向 @userinfobot 发消息获取自己的 ID。 | `78411234` |
+| **KV_BRIDGE_SECRET** | *建议* | Next.js 路由与 Edge Functions KV 桥接接口之间的共享密钥。建议生产环境务必配置。 | `edge-kv-bridge-secret` |
+| **KV_BRIDGE_ORIGIN** | *否* | 当运行环境无法自动推断站点域名时，显式指定 KV 桥接地址来源。通常填写站点根地址。 | `https://your-domain.example` |
 
 ### KV / 持久化存储说明（EdgeOne Pages 部署前请先阅读）
 
 当前仓库中的 `src/lib/kv.ts` 采用的是如下策略：
 
 1. **本地开发**：回退到项目根目录的 `.kv-store.json` 文件。
-2. **平台注入 KV 绑定时**：尝试读取全局对象 `__EDGE_KV__`。
+2. **EdgeOne Pages 生产环境**：由 Next.js 路由通过内部桥接接口访问 `edge-functions/internal/kv/[operation].js`，再由 Edge Functions 使用绑定变量名 `__EDGE_KV__` 直接读写 Pages KV。
 
 这意味着：
 
 - 当前代码**并不会读取** `KV_REST_API_URL`、`KV_REST_API_TOKEN` 这类 Upstash / Vercel KV 环境变量；README 旧版本在这里的描述与仓库当前实现不一致。
 - EdgeOne Pages 官方文档当前说明：**Pages KV 目前仅支持在 Edge Functions 中调用**。
-- 而本项目主体是标准 Next.js App Router 应用，`/api/*` 路由按 EdgeOne Pages 文档建议会以 Next.js 自带 API 路由 / Node 侧能力为主进行部署，而不是一个可直接读取 Pages KV 绑定的独立 Edge Functions 模板。
-- 因此，**把本仓库原样部署到 EdgeOne Pages 后，不能假定任务数据会稳定持久化到 EdgeOne Pages KV 中**。
+- 因此，本项目已改为 **Next.js API Route -> Edge Functions KV Bridge -> EdgeOne Pages KV** 的结构，避免在 Next.js 运行时中直接访问 KV。
+- EdgeOne 控制台绑定命名空间时，请将 **Variable Name** 设置为 `__EDGE_KV__`，以匹配桥接函数的读取方式。
+- 桥接接口默认地址是 `/internal/kv/*`；生产环境建议配置 `KV_BRIDGE_SECRET` 保护该内部接口。
 
-#### 推荐落地方案
+#### EdgeOne Pages 生产部署要求
 
-如果您的目标是“尽快在 EdgeOne Pages 正常上线”，建议优先采用以下两种方案之一：
-
-1. **推荐：改造 `src/lib/kv.ts` 接入外部持久化存储**
-   - 例如 Upstash Redis REST、Supabase、传统 Redis、数据库 API 等。
-   - 优点是与 Next.js 的 Node / Serverless 路由模型更容易兼容，部署方式也更直接。
-
-2. **进阶：重构为 EdgeOne Pages KV + Edge Functions 方案**
-   - 需要把实际读写 KV 的逻辑改造成 Edge Functions 可直接访问的形式，并按 EdgeOne Pages 的 KV 变量名进行绑定。
-   - 这条路不是当前仓库的现状，通常需要额外重构，而不是只改环境变量即可。
+1. 在项目的 **KV Storage** 页面绑定目标命名空间。
+2. 绑定时将 **Variable Name** 填写为 `__EDGE_KV__`。
+3. 在环境变量中配置 `KV_BRIDGE_SECRET`，并确保 Edge Functions 与 Next.js 路由使用同一份值。
+4. 如果站点运行在特殊反向代理或自定义域名推断不稳定的环境中，再额外配置 `KV_BRIDGE_ORIGIN`。
 
 *(注：系统中的监控任务列表、拨测状态记录必须存放在“真正可持久化”的存储中；本地 `.kv-store.json` 仅适合开发调试，不适合作为 EdgeOne Pages 生产环境持久化方案。)*
 
