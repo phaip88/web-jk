@@ -1,0 +1,53 @@
+name: Build and Package Next.js App
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build-and-pack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js app
+        run: npm run build
+
+      - name: Prepare Standalone Package
+        run: |
+          mkdir deploy_package
+          # Move standalone output
+          cp -r .next/standalone/* deploy_package/
+          # Copy static files Next.js needs
+          cp -r public deploy_package/public
+          mkdir -p deploy_package/.next
+          cp -r .next/static deploy_package/.next/static
+          
+          # Include the cron worker for convenience
+          cp cron-worker.js deploy_package/
+          
+          # Optional: Include simple package.json for runtime scripts
+          cp package.json deploy_package/
+
+      - name: Create Zip Archive
+        run: |
+          cd deploy_package
+          zip -r ../uptime-monitor-release.zip ./*
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uptime-monitor-release
+          path: uptime-monitor-release.zip
+          retention-days: 7
