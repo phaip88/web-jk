@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
-import { kv } from "@/lib/kv";
-import { TaskConfig, LogEntry, ApiResponse, CronResult } from "@/types";
+import { TaskConfig, ApiResponse, CronResult } from "@/types";
 import { pingUrl, pingResultToLogEntry, pingResultToCronResult, scheduleToMs } from "@/lib/pinger";
 import { sendTelegramNotification } from "@/lib/telegram";
+import { loadTask, loadTaskIds, loadTaskLogs, saveTask, saveTaskLogs } from "@/lib/task-store";
 
 const MAX_LOG_ENTRIES = 50;
 
 export async function GET() {
     try {
         const now = Date.now();
-        const taskIds = await kv.getJSON<string[]>("task:list") ?? [];
+        const taskIds = await loadTaskIds();
         const results: CronResult[] = [];
 
         // Collect tasks that need to run
         const tasksToRun: TaskConfig[] = [];
         for (const id of taskIds) {
-            const task = await kv.getJSON<TaskConfig>(`task:info:${id}`);
+            const task = await loadTask(id);
             if (!task) continue;
             if (task.status === "paused") continue;
 
@@ -55,12 +55,12 @@ export async function GET() {
                 const logEntry = pingResultToLogEntry(pingResult);
 
                 // Append to logs (keep last MAX_LOG_ENTRIES)
-                const logs = (await kv.getJSON<LogEntry[]>(`log:${task.id}`)) ?? [];
+                const logs = await loadTaskLogs(task.id);
                 logs.push(logEntry);
                 if (logs.length > MAX_LOG_ENTRIES) {
                     logs.splice(0, logs.length - MAX_LOG_ENTRIES);
                 }
-                await kv.putJSON(`log:${task.id}`, logs);
+                await saveTaskLogs(task.id, logs);
 
                 // Update task status
                 const previousStatus = task.status;
@@ -74,7 +74,7 @@ export async function GET() {
                     lastStatusCode: pingResult.statusCode,
                     updatedAt: now,
                 };
-                await kv.putJSON(`task:info:${task.id}`, updatedTask);
+                await saveTask(updatedTask);
 
                 // Build cron result
                 const cronResult = pingResultToCronResult(task, pingResult);

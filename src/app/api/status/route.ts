@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { kv } from "@/lib/kv";
-import { TaskConfig, LogEntry, ApiResponse } from "@/types";
+import { LogEntry, ApiResponse } from "@/types";
+import { loadTask, loadTaskIds, loadTaskLogs } from "@/lib/task-store";
 
 // GET /api/status - Public status data (no auth required)
 export async function GET() {
     try {
-        const taskIds = await kv.getJSON<string[]>("task:list") ?? [];
+        const taskIds = await loadTaskIds();
         const tasks: Array<{
             id: string;
             name: string;
@@ -19,10 +19,10 @@ export async function GET() {
         }> = [];
 
         for (const id of taskIds) {
-            const task = await kv.getJSON<TaskConfig>(`task:info:${id}`);
+            const task = await loadTask(id);
             if (!task) continue;
 
-            const logs = (await kv.getJSON<LogEntry[]>(`log:${id}`)) ?? [];
+            const logs = await loadTaskLogs(id);
 
             // Calculate uptime from logs
             const totalLogs = logs.length;

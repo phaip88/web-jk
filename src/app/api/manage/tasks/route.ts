@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kv, getResolvedKVStatus, KVStorageUnavailableError } from "@/lib/kv";
+import { getResolvedKVStatus, KVStorageUnavailableError } from "@/lib/kv";
 import { TaskConfig, TaskCreateInput, ApiResponse } from "@/types";
 import { randomUUID } from "crypto";
 import { normalizeMonitorUrl } from "@/lib/url";
+import { deleteTask, deleteTaskLogs, loadTask, loadTaskIds, saveTask, saveTaskIds, saveTaskLogs } from "@/lib/task-store";
 
 // GET /api/manage/tasks - List all tasks
 export async function GET() {
     try {
-        const taskIds = await kv.getJSON<string[]>("task:list") ?? [];
+        const taskIds = await loadTaskIds();
         const tasks: TaskConfig[] = [];
 
         for (const id of taskIds) {
-            const task = await kv.getJSON<TaskConfig>(`task:info:${id}`);
+            const task = await loadTask(id);
             if (task) tasks.push(task);
         }
 
@@ -78,15 +79,15 @@ export async function POST(request: NextRequest) {
         };
 
         // Save task config
-        await kv.putJSON(`task:info:${id}`, task);
+        await saveTask(task);
 
         // Add to task list
-        const taskIds = await kv.getJSON<string[]>("task:list") ?? [];
+        const taskIds = await loadTaskIds();
         taskIds.push(id);
-        await kv.putJSON("task:list", taskIds);
+        await saveTaskIds(taskIds);
 
         // Initialize empty log
-        await kv.putJSON(`log:${id}`, []);
+        await saveTaskLogs(id, []);
 
         return NextResponse.json(
             { success: true, data: task } satisfies ApiResponse,
@@ -118,13 +119,13 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Remove from task list
-        const taskIds = await kv.getJSON<string[]>("task:list") ?? [];
+        const taskIds = await loadTaskIds();
         const filtered = taskIds.filter((tid) => tid !== id);
-        await kv.putJSON("task:list", filtered);
+        await saveTaskIds(filtered);
 
         // Delete task config and logs
-        await kv.delete(`task:info:${id}`);
-        await kv.delete(`log:${id}`);
+        await deleteTask(id);
+        await deleteTaskLogs(id);
 
         return NextResponse.json({ success: true, data: { deleted: id } } satisfies ApiResponse);
     } catch (error) {
