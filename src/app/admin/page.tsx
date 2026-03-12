@@ -11,10 +11,11 @@ import {
     Tooltip,
     ResponsiveContainer,
 } from "recharts";
-import { TaskConfig, TaskCreateInput, LogEntry } from "@/types";
+import { ScheduleConfig, SuccessRuleConfig, TaskConfig, TaskCreateInput, LogEntry } from "@/types";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
+import { describeScheduleConfig, normalizeScheduleConfig, normalizeSuccessRule } from "@/lib/task-rules";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -26,40 +27,28 @@ function formatTime(ts: number | null): string {
     return dayjs(ts).tz("Asia/Shanghai").format("MM-DD HH:mm:ss");
 }
 
-function scheduleLabel(s: string): string {
-    const map: Record<string, string> = {
-        single: "单次执行",
-        "1m": "每 1 分钟",
-        "5m": "每 5 分钟",
-        "10m": "每 10 分钟",
-        "30m": "每 30 分钟",
-        "60m": "每 60 分钟",
-    };
-    return map[s] || s;
+function successRuleLabel(rule?: SuccessRuleConfig): string {
+    const normalized = normalizeSuccessRule(rule);
+    if (normalized.mode === "2xx_3xx") return "仅 2xx/3xx 视为正常";
+    if (normalized.mode === "custom_codes") return `自定义状态码：${(normalized.customCodes || []).join(", ")}`;
+    return "有 HTTP 响应即正常";
 }
 
 // ==================== Task Form Modal ====================
 
-function TaskFormModal({
-    onClose,
-    onCreated,
-    disabled,
-    initialTask,
-}: {
-    onClose: () => void;
-    onCreated: () => void;
-    disabled: boolean;
-    initialTask: TaskConfig | null;
-}) {
+function TaskFormModal({ onClose, onCreated, disabled, initialTask }: { onClose: () => void; onCreated: () => void; disabled: boolean; initialTask: TaskConfig | null; }) {
     const [form, setForm] = useState<TaskCreateInput>({
         name: initialTask?.name || "",
         url: initialTask?.url || "",
         method: initialTask?.method || "GET",
         schedule: initialTask?.schedule || "5m",
+        scheduleConfig: normalizeScheduleConfig(initialTask?.scheduleConfig, initialTask?.schedule),
         notifyRule: initialTask?.notifyRule || "on_fail",
+        successRule: normalizeSuccessRule(initialTask?.successRule),
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [customCodesText, setCustomCodesText] = useState((normalizeSuccessRule(initialTask?.successRule).customCodes || []).join(","));
 
     async function handleSubmit(e: FormEvent) {
         e.preventDefault();
@@ -71,9 +60,14 @@ function TaskFormModal({
         setLoading(true);
 
         try {
-            const payload = initialTask
-                ? { ...form, id: initialTask.id }
-                : form;
+            const successRule = form.successRule?.mode === "custom_codes"
+                ? {
+                    mode: "custom_codes" as const,
+                    customCodes: customCodesText.split(",").map((item) => Number(item.trim())).filter((code) => Number.isInteger(code) && code >= 100 && code <= 599),
+                }
+                : form.successRule;
+
+            const payload = initialTask ? { ...form, successRule, id: initialTask.id } : { ...form, successRule };
             const res = await fetch("/api/manage/tasks", {
                 method: initialTask ? "PUT" : "POST",
                 headers: { "Content-Type": "application/json" },
@@ -95,120 +89,79 @@ function TaskFormModal({
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <form
-                className="glass-card modal"
-                onClick={(e) => e.stopPropagation()}
-                onSubmit={handleSubmit}
-            >
+            <form className="glass-card modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
                 <h2>{initialTask ? "✏️ 编辑监控任务" : "➕ 添加监控任务"}</h2>
 
                 <div className="form-group">
                     <label className="form-label" htmlFor="task-name">任务名称</label>
-                    <input
-                        id="task-name"
-                        className="form-input"
-                        type="text"
-                        placeholder="我的网站"
-                        value={form.name}
-                        onChange={(e) => setForm({ ...form, name: e.target.value })}
-                        required
-                    />
+                    <input id="task-name" className="form-input" type="text" placeholder="我的网站" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
                 </div>
 
                 <div className="form-group">
                     <label className="form-label" htmlFor="task-url">监控 URL</label>
-                    <input
-                        id="task-url"
-                        className="form-input"
-                        type="text"
-                        inputMode="url"
-                        placeholder="example.com:8080/health 或 https://example.com"
-                        value={form.url}
-                        onChange={(e) => setForm({ ...form, url: e.target.value })}
-                        required
-                    />
-                    <div style={{ marginTop: 8, color: "var(--text-muted)", fontSize: "0.8125rem" }}>
-                        支持 http/https、裸域名、IP、端口和路径；未填写协议时默认按 http:// 处理。
-                    </div>
-                    <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: "0.8125rem" }}>
-                        若目标地址使用非常规端口且前面接了 Cloudflare/CDN 代理，平台可能无法连通；优先建议使用 80、443、8080、8443 等常见端口，或改为源站直连地址。
-                    </div>
+                    <input id="task-url" className="form-input" type="text" inputMode="url" placeholder="example.com:8080/health 或 https://example.com" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} required />
+                    <div style={{ marginTop: 8, color: "var(--text-muted)", fontSize: "0.8125rem" }}>支持 http/https、裸域名、IP、端口和路径；未填写协议时默认按 http:// 处理。</div>
+                    <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: "0.8125rem" }}>若目标地址使用非常规端口且前面接了 Cloudflare/CDN 代理，平台可能无法连通；优先建议使用 80、443、8080、8443 等常见端口，或改为源站直连地址。</div>
                 </div>
 
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label" htmlFor="task-method">请求方法</label>
-                        <select
-                            id="task-method"
-                            className="form-select"
-                            value={form.method}
-                            onChange={(e) =>
-                                setForm({ ...form, method: e.target.value as TaskCreateInput["method"] })
-                            }
-                        >
+                        <select id="task-method" className="form-select" value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value as TaskCreateInput["method"] })}>
                             <option value="GET">GET</option>
                             <option value="POST">POST</option>
                             <option value="HEAD">HEAD</option>
                         </select>
                     </div>
-
                     <div className="form-group">
-                        <label className="form-label" htmlFor="task-schedule">执行频率</label>
-                        <select
-                            id="task-schedule"
-                            className="form-select"
-                            value={form.schedule}
-                            onChange={(e) =>
-                                setForm({
-                                    ...form,
-                                    schedule: e.target.value as TaskCreateInput["schedule"],
-                                })
-                            }
-                        >
-                            <option value="single">单次执行</option>
-                            <option value="1m">每 1 分钟</option>
-                            <option value="5m">每 5 分钟</option>
-                            <option value="10m">每 10 分钟</option>
-                            <option value="30m">每 30 分钟</option>
-                            <option value="60m">每 60 分钟</option>
-                        </select>
+                        <label className="form-label">循环间隔规则</label>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: "0.875rem" }}><input type="checkbox" checked={Boolean(form.scheduleConfig?.interval.enabled)} onChange={(e) => setForm({ ...form, scheduleConfig: { ...(form.scheduleConfig as ScheduleConfig), interval: { ...(form.scheduleConfig as ScheduleConfig).interval, enabled: e.target.checked } } })} />启用</label>
+                            <input className="form-input" type="number" min={1} value={form.scheduleConfig?.interval.value || 5} onChange={(e) => setForm({ ...form, scheduleConfig: { ...(form.scheduleConfig as ScheduleConfig), interval: { ...(form.scheduleConfig as ScheduleConfig).interval, value: Number(e.target.value || 1) } } })} />
+                            <select className="form-select" value={form.scheduleConfig?.interval.unit || "minutes"} onChange={(e) => setForm({ ...form, scheduleConfig: { ...(form.scheduleConfig as ScheduleConfig), interval: { ...(form.scheduleConfig as ScheduleConfig).interval, unit: e.target.value as ScheduleConfig["interval"]["unit"] } } })}>
+                                <option value="minutes">分钟</option>
+                                <option value="hours">小时</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
                 <div className="form-group">
+                    <label className="form-label">指定时间规则</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 8 }}>
+                        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: "0.875rem" }}><input type="checkbox" checked={Boolean(form.scheduleConfig?.fixedTime.enabled)} onChange={(e) => setForm({ ...form, scheduleConfig: { ...(form.scheduleConfig as ScheduleConfig), fixedTime: { ...(form.scheduleConfig as ScheduleConfig).fixedTime, enabled: e.target.checked } } })} />启用</label>
+                        <input className="form-input" type="number" min={1} max={12} placeholder="月(可空)" value={form.scheduleConfig?.fixedTime.month ?? ""} onChange={(e) => setForm({ ...form, scheduleConfig: { ...(form.scheduleConfig as ScheduleConfig), fixedTime: { ...(form.scheduleConfig as ScheduleConfig).fixedTime, month: e.target.value ? Number(e.target.value) : null } } })} />
+                        <input className="form-input" type="number" min={1} max={31} placeholder="日(可空)" value={form.scheduleConfig?.fixedTime.day ?? ""} onChange={(e) => setForm({ ...form, scheduleConfig: { ...(form.scheduleConfig as ScheduleConfig), fixedTime: { ...(form.scheduleConfig as ScheduleConfig).fixedTime, day: e.target.value ? Number(e.target.value) : null } } })} />
+                        <input className="form-input" type="number" min={0} max={23} placeholder="小时" value={form.scheduleConfig?.fixedTime.hour ?? 0} onChange={(e) => setForm({ ...form, scheduleConfig: { ...(form.scheduleConfig as ScheduleConfig), fixedTime: { ...(form.scheduleConfig as ScheduleConfig).fixedTime, hour: Number(e.target.value || 0) } } })} />
+                        <input className="form-input" type="number" min={0} max={59} placeholder="分钟" value={form.scheduleConfig?.fixedTime.minute ?? 0} onChange={(e) => setForm({ ...form, scheduleConfig: { ...(form.scheduleConfig as ScheduleConfig), fixedTime: { ...(form.scheduleConfig as ScheduleConfig).fixedTime, minute: Number(e.target.value || 0) } } })} />
+                    </div>
+                    <div style={{ marginTop: 8, color: "var(--text-muted)", fontSize: "0.8125rem" }}>可只启用循环间隔、只启用指定时间，或两者同时启用；月/日留空表示不限制。</div>
+                </div>
+
+                <div className="form-group">
                     <label className="form-label" htmlFor="task-notify">通知策略</label>
-                    <select
-                        id="task-notify"
-                        className="form-select"
-                        value={form.notifyRule}
-                        onChange={(e) =>
-                            setForm({
-                                ...form,
-                                notifyRule: e.target.value as TaskCreateInput["notifyRule"],
-                            })
-                        }
-                    >
-                        <option value="on_fail">仅失败时通知</option>
+                    <select id="task-notify" className="form-select" value={form.notifyRule} onChange={(e) => setForm({ ...form, notifyRule: e.target.value as TaskCreateInput["notifyRule"] })}>
+                        <option value="on_fail">失败时通知，恢复时也通知</option>
                         <option value="always">每次运行都通知</option>
                         <option value="never">不通知</option>
                     </select>
                 </div>
 
+                <div className="form-group">
+                    <label className="form-label" htmlFor="task-success-rule">正常判定规则</label>
+                    <select id="task-success-rule" className="form-select" value={form.successRule?.mode || "any_http"} onChange={(e) => setForm({ ...form, successRule: { mode: e.target.value as SuccessRuleConfig["mode"], customCodes: form.successRule?.customCodes } })}>
+                        <option value="any_http">有 HTTP 响应即正常</option>
+                        <option value="2xx_3xx">仅 2xx / 3xx 视为正常</option>
+                        <option value="custom_codes">自定义状态码视为正常</option>
+                    </select>
+                    {form.successRule?.mode === "custom_codes" && <input className="form-input" style={{ marginTop: 8 }} type="text" placeholder="例如 200,204,401" value={customCodesText} onChange={(e) => setCustomCodesText(e.target.value)} />}
+                </div>
+
                 {error && <div className="login-error">{error}</div>}
 
                 <div className="modal-actions">
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>
-                        取 消
-                    </button>
-                    <button type="submit" className="btn btn-primary" disabled={loading}>
-                        {loading ? (
-                            <>
-                                <span className="spinner" /> {initialTask ? "保存中..." : "创建中..."}
-                            </>
-                        ) : (
-                            initialTask ? "保 存" : "创 建"
-                        )}
-                    </button>
+                    <button type="button" className="btn btn-secondary" onClick={onClose}>取 消</button>
+                    <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? <><span className="spinner" /> {initialTask ? "保存中..." : "创建中..."}</> : initialTask ? "保 存" : "创 建"}</button>
                 </div>
             </form>
         </div>
@@ -515,7 +468,7 @@ export default function AdminPage() {
                                         <div className="task-url">{task.url}</div>
                                     </div>
                                     <div className="task-schedule">
-                                        {scheduleLabel(task.schedule)}
+                                        {describeScheduleConfig(task.scheduleConfig, task.schedule)}
                                     </div>
                                     <StatusBadge status={task.status} />
                                     <div style={{ display: "flex", gap: 8 }}>
@@ -568,6 +521,9 @@ export default function AdminPage() {
                                                     : "—"}
                                             </span>
                                             <span>最后运行：{formatTime(task.lastRunTime)}</span>
+                                        </div>
+                                        <div style={{ marginBottom: 12, fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
+                                            正常判定：{successRuleLabel(task.successRule)}
                                         </div>
                                         <LatencyChart taskId={task.id} />
                                     </div>
