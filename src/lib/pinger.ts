@@ -73,8 +73,9 @@ export function pingResultToCronResult(
     result: PingResult
 ): CronResult {
     return {
-        taskId: task.url,
+        taskId: task.id,
         taskName: task.name,
+        url: task.url,
         success: result.success,
         statusCode: result.statusCode,
         responseTime: result.responseTime,

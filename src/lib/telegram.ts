@@ -24,6 +24,34 @@ function formatTimestamp(ts: number): string {
     return dayjs(ts).tz("Asia/Shanghai").format("YYYY-MM-DD HH:mm:ss");
 }
 
+function buildStatusSummary(result: CronResult): { title: string; codeLine: string; detailLine: string } {
+    if (result.statusCode !== null) {
+        const translated = translateHttpStatus(result.statusCode);
+        return {
+            title:
+                result.transition === "recovery"
+                    ? "🟢 恢复通知"
+                    : result.success
+                      ? "✅ 运行正常"
+                      : "🔴 故障告警",
+            codeLine: `*状态码*：${result.statusCode}`,
+            detailLine: `*状态说明*：${translated.name} - ${translated.desc}`,
+        };
+    }
+
+    const translated = translateNetworkError(
+        Object.assign(new Error(result.errorMessage || ""), {
+            name: result.errorType || "TypeError",
+        })
+    );
+
+    return {
+        title: result.transition === "recovery" ? "🟢 恢复通知" : "🔴 故障告警",
+        codeLine: "*状态码*：无 HTTP 状态码返回",
+        detailLine: `*状态说明*：${translated.name} - ${translated.desc}`,
+    };
+}
+
 async function sendTelegramMessage(text: string): Promise<boolean> {
     const { botToken, chatId } = getConfig();
     if (!botToken || !chatId) {
@@ -54,41 +82,23 @@ async function sendTelegramMessage(text: string): Promise<boolean> {
 }
 
 function buildMessage(result: CronResult): string {
-    const statusEmoji = result.success ? "✅" : "🚨";
-    const statusText = result.success ? "成功" : "失败";
+    const statusText = result.transition === "recovery"
+        ? "已恢复"
+        : result.success
+          ? "正常"
+          : "异常";
+    const summary = buildStatusSummary(result);
 
-    let errorSection = "";
-    if (!result.success) {
-        let errorName = "未知错误";
-        let errorDesc = "请检查服务状态。";
-
-        if (result.statusCode && result.statusCode >= 400) {
-            const translated = translateHttpStatus(result.statusCode);
-            errorName = `${result.statusCode} ${translated.name}`;
-            errorDesc = translated.desc;
-        } else if (result.errorType) {
-            const translated = translateNetworkError(
-                Object.assign(new Error(result.errorMessage || ""), {
-                    name: result.errorType,
-                })
-            );
-            errorName = translated.name;
-            errorDesc = translated.desc;
-        }
-
-        errorSection = `
-*错误类型*：${errorName}
-*详细说明*：${errorDesc}`;
-    }
-
-    return `${statusEmoji} *URL 运行状态通知* ${statusEmoji}
+    return `${summary.title}
 
 *任务名称*：${result.taskName}
-*监控地址*：\`${result.taskId}\`
-*运行状态*：${statusEmoji} ${statusText}
-*响应时间*：${result.responseTime}ms${errorSection}
-
-⏱ *发生时间*：${formatTimestamp(Date.now())}`;
+*监控地址*：\`${result.url || result.taskId}\`
+*当前状态*：${statusText}
+${summary.codeLine}
+${summary.detailLine}
+*响应时间*：${result.responseTime}ms
+${result.errorMessage ? `*错误内容*：${result.errorMessage}
+` : ""}⏱ *发生时间*：${formatTimestamp(Date.now())}`;
 }
 
 export async function sendTelegramNotification(result: CronResult): Promise<boolean> {
@@ -98,11 +108,13 @@ export async function sendTelegramNotification(result: CronResult): Promise<bool
 }
 
 export async function sendTelegramTestNotification(): Promise<boolean> {
-    const message = `🧪 *Telegram 通知测试*
+    const message = `🧪 *通知测试*
 
 *任务名称*：配置自检
 *监控地址*：\`manual://telegram-test\`
-*运行状态*：✅ 成功
+*当前状态*：正常
+*状态码*：无 HTTP 状态码返回
+*状态说明*：测试消息，不代表真实监控结果
 *响应时间*：0ms
 
 ⏱ *发生时间*：${formatTimestamp(Date.now())}`;
