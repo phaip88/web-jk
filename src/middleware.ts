@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken, COOKIE_NAME } from "@/lib/auth";
 
 // 不需要验证的公开路径
-const PUBLIC_PATHS = ["/login", "/status", "/api/auth", "/api/cron", "/api/status", "/api/cron-meta", "/internal/kv"];
+const PUBLIC_PATHS = ["/login", "/status", "/api/auth", "/api/cron", "/api/ping-now", "/api/status", "/api/cron-meta", "/internal/kv"];
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
+
+    if (pathname === "/") {
+        return NextResponse.next();
+    }
 
     // 跳过公开路径
     if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {

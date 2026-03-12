@@ -44,17 +44,19 @@ function TaskFormModal({
     onClose,
     onCreated,
     disabled,
+    initialTask,
 }: {
     onClose: () => void;
     onCreated: () => void;
     disabled: boolean;
+    initialTask: TaskConfig | null;
 }) {
     const [form, setForm] = useState<TaskCreateInput>({
-        name: "",
-        url: "",
-        method: "GET",
-        schedule: "5m",
-        notifyRule: "on_fail",
+        name: initialTask?.name || "",
+        url: initialTask?.url || "",
+        method: initialTask?.method || "GET",
+        schedule: initialTask?.schedule || "5m",
+        notifyRule: initialTask?.notifyRule || "on_fail",
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -69,17 +71,20 @@ function TaskFormModal({
         setLoading(true);
 
         try {
+            const payload = initialTask
+                ? { ...form, id: initialTask.id }
+                : form;
             const res = await fetch("/api/manage/tasks", {
-                method: "POST",
+                method: initialTask ? "PUT" : "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(form),
+                body: JSON.stringify(payload),
             });
             const data = await res.json();
             if (data.success) {
                 onCreated();
                 onClose();
             } else {
-                setError(data.error || "创建失败");
+                setError(data.error || (initialTask ? "更新失败" : "创建失败"));
             }
         } catch {
             setError("网络错误");
@@ -95,7 +100,7 @@ function TaskFormModal({
                 onClick={(e) => e.stopPropagation()}
                 onSubmit={handleSubmit}
             >
-                <h2>➕ 添加监控任务</h2>
+                <h2>{initialTask ? "✏️ 编辑监控任务" : "➕ 添加监控任务"}</h2>
 
                 <div className="form-group">
                     <label className="form-label" htmlFor="task-name">任务名称</label>
@@ -124,6 +129,9 @@ function TaskFormModal({
                     />
                     <div style={{ marginTop: 8, color: "var(--text-muted)", fontSize: "0.8125rem" }}>
                         支持 http/https、裸域名、IP、端口和路径；未填写协议时默认按 http:// 处理。
+                    </div>
+                    <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: "0.8125rem" }}>
+                        若目标地址使用非常规端口且前面接了 Cloudflare/CDN 代理，平台可能无法连通；优先建议使用 80、443、8080、8443 等常见端口，或改为源站直连地址。
                     </div>
                 </div>
 
@@ -195,10 +203,10 @@ function TaskFormModal({
                     <button type="submit" className="btn btn-primary" disabled={loading}>
                         {loading ? (
                             <>
-                                <span className="spinner" /> 创建中...
+                                <span className="spinner" /> {initialTask ? "保存中..." : "创建中..."}
                             </>
                         ) : (
-                            "创 建"
+                            initialTask ? "保 存" : "创 建"
                         )}
                     </button>
                 </div>
@@ -311,8 +319,8 @@ export default function AdminPage() {
     const [storageWritable, setStorageWritable] = useState(true);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [editingTask, setEditingTask] = useState<TaskConfig | null>(null);
     const [expandedTask, setExpandedTask] = useState<string | null>(null);
-    const [cronLoading, setCronLoading] = useState(false);
     const [tgTestLoading, setTgTestLoading] = useState(false);
     const router = useRouter();
 
@@ -355,24 +363,6 @@ export default function AdminPage() {
         }
     }
 
-    async function handleCronTrigger() {
-        setCronLoading(true);
-        try {
-            const res = await fetch("/api/cron");
-            const data = await res.json();
-            if (data.success) {
-                alert(`拨测完成！共执行 ${data.data.executed} 个任务。`);
-                fetchTasks();
-            } else {
-                alert("拨测失败：" + data.error);
-            }
-        } catch {
-            alert("网络错误");
-        } finally {
-            setCronLoading(false);
-        }
-    }
-
     async function handleLogout() {
         await fetch("/api/auth/logout", { method: "POST" });
         router.push("/login");
@@ -406,7 +396,7 @@ export default function AdminPage() {
                 <div className="container navbar-inner">
                     <div className="navbar-brand">
                         <span className="logo-dot" />
-                        Uptime Monitor
+                        站点监控台
                     </div>
                     <div className="navbar-links">
                         <a href="/status" className="btn btn-secondary btn-sm">
@@ -438,21 +428,11 @@ export default function AdminPage() {
                             )}
                         </button>
                         <button
-                            className="btn btn-secondary"
-                            onClick={handleCronTrigger}
-                            disabled={cronLoading}
-                        >
-                            {cronLoading ? (
-                                <>
-                                    <span className="spinner" /> 拨测中...
-                                </>
-                            ) : (
-                                "⚡ 手动拨测"
-                            )}
-                        </button>
-                        <button
                             className="btn btn-primary"
-                            onClick={() => setShowModal(true)}
+                            onClick={() => {
+                                setEditingTask(null);
+                                setShowModal(true);
+                            }}
                             disabled={!storageWritable}
                         >
                             ➕ 添加任务
@@ -508,7 +488,10 @@ export default function AdminPage() {
                         <p>还没有任何监控任务</p>
                         <button
                             className="btn btn-primary btn-sm"
-                            onClick={() => setShowModal(true)}
+                            onClick={() => {
+                                setEditingTask(null);
+                                setShowModal(true);
+                            }}
                             disabled={!storageWritable}
                         >
                             {storageWritable ? "创建第一个任务" : "当前部署不可写"}
@@ -536,6 +519,16 @@ export default function AdminPage() {
                                     </div>
                                     <StatusBadge status={task.status} />
                                     <div style={{ display: "flex", gap: 8 }}>
+                                        <button
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditingTask(task);
+                                                setShowModal(true);
+                                            }}
+                                        >
+                                            编辑
+                                        </button>
                                         <button
                                             className="btn btn-danger btn-sm"
                                             onClick={(e) => {
@@ -588,16 +581,20 @@ export default function AdminPage() {
             {/* Footer */}
             <footer className="footer">
                 <div className="container">
-                    由 <strong>Uptime Monitor</strong> 提供支持 · Serverless 边缘监控
+                    由 <strong>站点监控台</strong> 提供支持 · Serverless 边缘监控
                 </div>
             </footer>
 
             {/* Task creation modal */}
             {showModal && (
                 <TaskFormModal
-                    onClose={() => setShowModal(false)}
+                    onClose={() => {
+                        setShowModal(false);
+                        setEditingTask(null);
+                    }}
                     onCreated={fetchTasks}
                     disabled={!storageWritable}
+                    initialTask={editingTask}
                 />
             )}
         </>

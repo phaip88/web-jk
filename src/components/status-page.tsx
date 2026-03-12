@@ -44,15 +44,17 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function Sparkline({ logs }: { logs: LogEntry[] }) {
-  if (logs.length === 0) {
+  const recent = logs.slice(-5);
+
+  if (recent.length === 0) {
     return (
       <div className="sparkline">
-        {Array.from({ length: 12 }).map((_, i) => (
+        {Array.from({ length: 5 }).map((_, i) => (
           <div
             key={i}
             className="sparkline-bar"
             style={{
-              height: "3px",
+              height: "8px",
               background: "var(--border-color)",
             }}
           />
@@ -61,25 +63,63 @@ function Sparkline({ logs }: { logs: LogEntry[] }) {
     );
   }
 
-  const maxRT = Math.max(...logs.map((l) => l.responseTime), 1);
-
   return (
     <div className="sparkline">
-      {logs.map((log, i) => {
-        const h = Math.max(3, (log.responseTime / maxRT) * 32);
-        const bg = log.success
-          ? `hsl(${142 - (log.responseTime / maxRT) * 80}, 70%, 50%)`
-          : "var(--danger)";
+      {recent.map((log, i) => {
+        const h = log.success ? 26 : 8;
+        const bg = log.success ? "var(--success)" : "var(--danger)";
 
         return (
           <div
             key={i}
             className="sparkline-bar"
             style={{ height: `${h}px`, background: bg }}
-            title={`${log.responseTime}ms - ${log.success ? "成功" : "失败"}`}
+            title={`最近拨测：${log.success ? "成功" : "失败"} / ${log.responseTime}ms`}
           />
         );
       })}
+    </div>
+  );
+}
+
+function SuccessRateBar({ logs }: { logs: LogEntry[] }) {
+  const recent = logs.slice(-5);
+  const successCount = recent.filter((log) => log.success).length;
+  const percent = recent.length > 0 ? Math.round((successCount / recent.length) * 100) : 0;
+
+  return (
+    <div style={{ marginTop: 10, width: "100%" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: "0.75rem",
+          color: "var(--text-muted)",
+          marginBottom: 6,
+        }}
+      >
+        <span>最近 5 次成功率</span>
+        <span>{recent.length > 0 ? `${percent}%` : "暂无数据"}</span>
+      </div>
+      <div
+        style={{
+          width: "100%",
+          height: 8,
+          borderRadius: 999,
+          background: "rgba(148, 163, 184, 0.18)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${percent}%`,
+            height: "100%",
+            borderRadius: 999,
+            background: percent >= 80 ? "var(--success)" : percent >= 50 ? "var(--warning)" : "var(--danger)",
+            transition: "width 0.2s ease",
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -111,7 +151,7 @@ function UptimeRing({ percent }: { percent: number }) {
         <span className="uptime-ring-value" style={{ color }}>
           {percent}%
         </span>
-        <span className="uptime-ring-text">Uptime</span>
+        <span className="uptime-ring-text">可用率</span>
       </div>
     </div>
   );
@@ -126,6 +166,7 @@ export default function StatusPage() {
   const [data, setData] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>("");
+  const [pingingId, setPingingId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -151,17 +192,37 @@ export default function StatusPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  const runManualPing = useCallback(async (taskId: string) => {
+    setPingingId(taskId);
+    try {
+      const res = await fetch("/api/ping-now", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: taskId }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        alert(json.error || "手动拨测失败");
+      }
+      await fetchData();
+    } catch {
+      alert("网络错误，手动拨测失败");
+    } finally {
+      setPingingId(null);
+    }
+  }, [fetchData]);
+
   return (
     <>
       <nav className="navbar">
         <div className="container navbar-inner">
           <div className="navbar-brand">
             <span className="logo-dot" />
-            Uptime Monitor
+            站点监控台
           </div>
           <div className="navbar-links">
-            <a href="/login" className="btn btn-secondary btn-sm">
-              登录后台
+            <a href="/admin" className="btn btn-secondary btn-sm">
+              进入管理后台
             </a>
           </div>
         </div>
@@ -171,7 +232,7 @@ export default function StatusPage() {
         <div className="container">
           <h1 className="hero-title">服务状态监控</h1>
           <p className="hero-subtitle">
-            实时监控所有服务的运行状态，全球边缘节点拨测
+            实时查看每个监控地址的状态、最近五次结果与手动测试入口
           </p>
         </div>
       </section>
@@ -211,10 +272,20 @@ export default function StatusPage() {
                   <span>
                     ⏱ {task.lastResponseTime !== null ? `${task.lastResponseTime}ms` : "—"}
                   </span>
-                  <span>📡 {task.lastStatusCode ?? "—"}</span>
+                  <span>📡 状态码 {task.lastStatusCode ?? "无"}</span>
                   <span>🕐 {formatTime(task.lastRunTime)}</span>
-                  <span>📊 Uptime {task.uptimePercent}%</span>
+                  <span>📊 可用率 {task.uptimePercent}%</span>
                 </div>
+                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => runManualPing(task.id)}
+                    disabled={pingingId === task.id}
+                  >
+                    {pingingId === task.id ? "拨测中..." : "立即拨测"}
+                  </button>
+                </div>
+                <SuccessRateBar logs={task.recentLogs} />
               </div>
               <div className="task-card-right">
                 <StatusBadge status={task.status} />
@@ -227,8 +298,8 @@ export default function StatusPage() {
             <div className="glass-card empty-state">
               <div className="icon">🔍</div>
               <p>暂无监控任务</p>
-              <a href="/login" className="btn btn-primary btn-sm">
-                前往登录
+              <a href="/admin" className="btn btn-primary btn-sm">
+                前往管理后台
               </a>
             </div>
           )}
@@ -237,7 +308,7 @@ export default function StatusPage() {
 
       <footer className="footer">
         <div className="container">
-          由 <strong>Uptime Monitor</strong> 提供支持 · Serverless 边缘监控
+          由 <strong>站点监控台</strong> 提供支持 · Serverless 边缘监控
         </div>
       </footer>
     </>
