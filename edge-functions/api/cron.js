@@ -1,6 +1,7 @@
 import { json } from "../lib/json.js";
 import { loadCronMeta, loadTask, loadTaskIds, loadTaskLogs, saveCronMeta, saveTask, saveTaskLogs } from "../lib/store.js";
-import { getKV, pingTask, scheduleToMs, sendTelegramNotification } from "../lib/runtime.js";
+import { getKV, pingTask, sendTelegramNotification } from "../lib/runtime.js";
+import { shouldRunTaskNow } from "../lib/task-rules.js";
 
 const MAX_LOG_ENTRIES = 5;
 
@@ -24,12 +25,7 @@ export async function onRequestGet(context) {
         continue;
       }
 
-      if (task.schedule === "single" && task.lastRunTime !== null) {
-        continue;
-      }
-
-      const interval = scheduleToMs(task.schedule);
-      if (task.lastRunTime && now - task.lastRunTime < interval) {
+      if (!shouldRunTaskNow(task, now)) {
         continue;
       }
 

@@ -4,6 +4,7 @@
  */
 
 import { TaskConfig, LogEntry, CronResult } from "@/types";
+import { shouldTreatStatusCodeAsSuccess } from "@/lib/task-rules";
 
 const PING_TIMEOUT_MS = 10_000; // 10 seconds
 
@@ -33,14 +34,14 @@ export async function pingUrl(task: TaskConfig): Promise<PingResult> {
         const responseTime = Date.now() - startTime;
         clearTimeout(timer);
 
-        const success = true;
+        const success = shouldTreatStatusCodeAsSuccess(response.status, task.successRule);
 
         return {
             statusCode: response.status,
             responseTime,
             success,
-            errorType: undefined,
-            errorMessage: undefined,
+            errorType: success ? undefined : `HTTP_${response.status}`,
+            errorMessage: success ? undefined : response.statusText,
         };
     } catch (error: unknown) {
         clearTimeout(timer);

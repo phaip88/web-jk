@@ -72,7 +72,7 @@ export async function onRequestPost(context) {
 
     const shouldNotify =
       task.notifyRule === "always" ||
-      (task.notifyRule === "on_fail" && (result.transition === "failure" || result.transition === "recovery"));
+      (task.notifyRule === "on_fail" && (newStatus === "down" || result.transition === "recovery"));
 
     if (shouldNotify) {
       await sendTelegramNotification(context.env, result).catch(() => undefined);

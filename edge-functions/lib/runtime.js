@@ -1,3 +1,5 @@
+import { shouldTreatStatusCodeAsSuccess } from "./task-rules.js";
+
 export function getKV(context) {
   return context.env?.EDGE_KV ?? context.env?.__EDGE_KV__ ?? globalThis.EDGE_KV ?? globalThis.__EDGE_KV__ ?? null;
 }
@@ -144,10 +146,10 @@ export async function pingTask(task) {
     });
 
     return {
-      success: true,
+      success: shouldTreatStatusCodeAsSuccess(response.status, task.successRule),
       statusCode: response.status,
       responseTime: Date.now() - startedAt,
-      errorMessage: undefined,
+      errorMessage: shouldTreatStatusCodeAsSuccess(response.status, task.successRule) ? undefined : response.statusText,
     };
   } catch (error) {
     return {

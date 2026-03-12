@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TaskConfig, ApiResponse, CronResult } from "@/types";
-import { pingUrl, pingResultToLogEntry, pingResultToCronResult, scheduleToMs } from "@/lib/pinger";
+import { pingUrl, pingResultToLogEntry, pingResultToCronResult } from "@/lib/pinger";
 import { sendTelegramNotification } from "@/lib/telegram";
 import { loadCronMeta, loadTask, loadTaskIds, loadTaskLogs, saveCronMeta, saveTask, saveTaskLogs } from "@/lib/task-store";
+import { shouldRunTaskNow } from "@/lib/task-rules";
 
 const MAX_LOG_ENTRIES = 5;
 
@@ -21,12 +22,7 @@ export async function GET(request: NextRequest) {
             if (!task) continue;
             if (task.status === "paused") continue;
 
-            // Single-run tasks that already ran are skipped
-            if (task.schedule === "single" && task.lastRunTime !== null) continue;
-
-            // Check interval
-            const interval = scheduleToMs(task.schedule);
-            if (task.lastRunTime && now - task.lastRunTime < interval) continue;
+            if (!shouldRunTaskNow(task, now)) continue;
 
             tasksToRun.push(task);
         }
