@@ -26,7 +26,7 @@ function LoginForm() {
             const data = await res.json();
 
             if (data.success) {
-                const redirect = searchParams.get("redirect") || "/admin";
+                const redirect = searchParams.get("redirect") || "/status";
                 router.push(redirect);
             } else {
                 setError(data.error || "登录失败");
