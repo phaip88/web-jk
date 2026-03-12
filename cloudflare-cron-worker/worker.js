@@ -121,7 +121,24 @@ function formatTime(timestamp) {
     return "-";
   }
 
-  return new Date(timestamp).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" });
+  try {
+    return new Intl.DateTimeFormat("zh-CN", {
+      timeZone: "Asia/Shanghai",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).format(new Date(timestamp));
+  } catch {
+    try {
+      return new Date(timestamp).toISOString().replace("T", " ").slice(0, 19);
+    } catch {
+      return String(timestamp);
+    }
+  }
 }
 
 function formatAgo(timestamp) {
@@ -228,17 +245,34 @@ function renderPage({ cronMeta, statusData, env, fetchError }) {
 }
 
 async function buildStatusPage(env) {
-  const cronMetaUrl = deriveApiUrl(env, "/api/cron-meta");
-  const statusUrl = deriveApiUrl(env, "/api/status");
-  const [cronMetaRes, statusRes] = await Promise.all([fetchJson(cronMetaUrl), fetchJson(statusUrl)]);
+  try {
+    const cronMetaUrl = deriveApiUrl(env, "/api/cron-meta");
+    const statusUrl = deriveApiUrl(env, "/api/status");
+    const [cronMetaRes, statusRes] = await Promise.all([fetchJson(cronMetaUrl), fetchJson(statusUrl)]);
 
-  const cronMeta = cronMetaRes.data?.data || null;
-  const statusData = statusRes.data?.data || null;
-  const fetchError = cronMetaRes.error || statusRes.error || (!cronMetaRes.ok ? `cron-meta ${cronMetaRes.status}` : null) || (!statusRes.ok ? `status ${statusRes.status}` : null);
+    const cronMeta = cronMetaRes.data?.data || null;
+    const statusData = statusRes.data?.data || null;
+    const fetchError = cronMetaRes.error || statusRes.error || (!cronMetaRes.ok ? `cron-meta ${cronMetaRes.status}` : null) || (!statusRes.ok ? `status ${statusRes.status}` : null);
 
-  return new Response(renderPage({ cronMeta, statusData, env, fetchError }), {
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
+    return new Response(renderPage({ cronMeta, statusData, env, fetchError }), {
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  } catch (error) {
+    return new Response(
+      JSON.stringify(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to build status page",
+        },
+        null,
+        2
+      ),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      }
+    );
+  }
 }
 
 const worker = {
