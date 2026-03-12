@@ -1,6 +1,7 @@
 import { json, parseJson } from "../../lib/json.js";
 import { deleteTask, deleteTaskLogs, loadTask, loadTaskIds, saveTask, saveTaskIds, saveTaskLogs } from "../../lib/store.js";
 import { getKV, normalizeMonitorUrl } from "../../lib/runtime.js";
+import { getLegacyScheduleFromConfig, normalizeScheduleConfig, normalizeSuccessRule } from "../../lib/task-rules.js";
 
 export async function onRequest(context) {
   const { request } = context;
@@ -39,8 +40,10 @@ export async function onRequest(context) {
         name: String(body.name),
         url: normalizeMonitorUrl(body.url),
         method: body.method || "GET",
-        schedule: body.schedule || "5m",
+        scheduleConfig: normalizeScheduleConfig(body.scheduleConfig, body.schedule),
+        schedule: getLegacyScheduleFromConfig(normalizeScheduleConfig(body.scheduleConfig, body.schedule)),
         notifyRule: body.notifyRule || "on_fail",
+        successRule: normalizeSuccessRule(body.successRule),
         status: "pending",
         lastRunTime: null,
         lastResponseTime: null,
@@ -77,8 +80,10 @@ export async function onRequest(context) {
         name: String(body.name),
         url: normalizeMonitorUrl(body.url),
         method: body.method || existing.method,
-        schedule: body.schedule || existing.schedule,
+        scheduleConfig: normalizeScheduleConfig(body.scheduleConfig, body.schedule || existing.schedule),
+        schedule: getLegacyScheduleFromConfig(normalizeScheduleConfig(body.scheduleConfig, body.schedule || existing.schedule)),
         notifyRule: body.notifyRule || existing.notifyRule,
+        successRule: normalizeSuccessRule(body.successRule || existing.successRule),
         updatedAt: Date.now(),
       };
 

@@ -4,6 +4,7 @@ import { TaskConfig, TaskCreateInput, TaskUpdateInput, ApiResponse } from "@/typ
 import { randomUUID } from "crypto";
 import { normalizeMonitorUrl } from "@/lib/url";
 import { deleteTask, deleteTaskLogs, loadTask, loadTaskIds, saveTask, saveTaskIds, saveTaskLogs } from "@/lib/task-store";
+import { getLegacyScheduleFromConfig, normalizeScheduleConfig, normalizeSuccessRule } from "@/lib/task-rules";
 
 // GET /api/manage/tasks - List all tasks
 export async function GET() {
@@ -68,8 +69,10 @@ export async function POST(request: NextRequest) {
             name: body.name,
             url: normalizedUrl,
             method: body.method || "GET",
-            schedule: body.schedule || "5m",
+            scheduleConfig: normalizeScheduleConfig(body.scheduleConfig, body.schedule),
+            schedule: getLegacyScheduleFromConfig(normalizeScheduleConfig(body.scheduleConfig, body.schedule)),
             notifyRule: body.notifyRule || "on_fail",
+            successRule: normalizeSuccessRule(body.successRule),
             status: "pending",
             lastRunTime: null,
             lastResponseTime: null,
@@ -144,8 +147,10 @@ export async function PUT(request: NextRequest) {
             name: body.name,
             url: normalizedUrl,
             method: body.method || existing.method,
-            schedule: body.schedule || existing.schedule,
+            scheduleConfig: normalizeScheduleConfig(body.scheduleConfig, body.schedule || existing.schedule),
+            schedule: getLegacyScheduleFromConfig(normalizeScheduleConfig(body.scheduleConfig, body.schedule || existing.schedule)),
             notifyRule: body.notifyRule || existing.notifyRule,
+            successRule: normalizeSuccessRule(body.successRule || existing.successRule),
             updatedAt: Date.now(),
         };
 
