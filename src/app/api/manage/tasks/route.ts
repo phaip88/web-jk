@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getResolvedKVStatus, KVStorageUnavailableError } from "@/lib/kv";
-import { TaskConfig, TaskCreateInput, ApiResponse } from "@/types";
+import { TaskConfig, TaskCreateInput, TaskUpdateInput, ApiResponse } from "@/types";
 import { randomUUID } from "crypto";
 import { normalizeMonitorUrl } from "@/lib/url";
 import { deleteTask, deleteTaskLogs, loadTask, loadTaskIds, saveTask, saveTaskIds, saveTaskLogs } from "@/lib/task-store";
@@ -101,6 +101,63 @@ export async function POST(request: NextRequest) {
             {
                 success: false,
                 error: error instanceof Error ? error.message : "创建任务失败",
+            } satisfies ApiResponse,
+            { status }
+        );
+    }
+}
+
+export async function PUT(request: NextRequest) {
+    try {
+        const body = (await request.json()) as TaskUpdateInput;
+
+        if (!body.id || !body.name || !body.url) {
+            return NextResponse.json(
+                { success: false, error: "任务 ID、名称和 URL 不能为空" } satisfies ApiResponse,
+                { status: 400 }
+            );
+        }
+
+        const existing = await loadTask(body.id);
+        if (!existing) {
+            return NextResponse.json(
+                { success: false, error: "任务不存在" } satisfies ApiResponse,
+                { status: 404 }
+            );
+        }
+
+        let normalizedUrl = "";
+        try {
+            normalizedUrl = normalizeMonitorUrl(body.url);
+        } catch (error) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: error instanceof Error ? error.message : "无效的 URL 格式",
+                } satisfies ApiResponse,
+                { status: 400 }
+            );
+        }
+
+        const updated: TaskConfig = {
+            ...existing,
+            name: body.name,
+            url: normalizedUrl,
+            method: body.method || existing.method,
+            schedule: body.schedule || existing.schedule,
+            notifyRule: body.notifyRule || existing.notifyRule,
+            updatedAt: Date.now(),
+        };
+
+        await saveTask(updated);
+
+        return NextResponse.json({ success: true, data: updated } satisfies ApiResponse);
+    } catch (error) {
+        const status = error instanceof KVStorageUnavailableError ? 503 : 500;
+        return NextResponse.json(
+            {
+                success: false,
+                error: error instanceof Error ? error.message : "更新任务失败",
             } satisfies ApiResponse,
             { status }
         );

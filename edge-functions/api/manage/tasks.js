@@ -60,6 +60,32 @@ export async function onRequest(context) {
       return json({ success: true, data: task }, 201);
     }
 
+    if (request.method === "PUT") {
+      const body = await parseJson(request);
+
+      if (!body.id || !body.name || !body.url) {
+        return json({ success: false, error: "任务 ID、名称和 URL 不能为空" }, 400);
+      }
+
+      const existing = await loadTask(kv, body.id);
+      if (!existing) {
+        return json({ success: false, error: "任务不存在" }, 404);
+      }
+
+      const updated = {
+        ...existing,
+        name: String(body.name),
+        url: normalizeMonitorUrl(body.url),
+        method: body.method || existing.method,
+        schedule: body.schedule || existing.schedule,
+        notifyRule: body.notifyRule || existing.notifyRule,
+        updatedAt: Date.now(),
+      };
+
+      await saveTask(kv, updated);
+      return json({ success: true, data: updated });
+    }
+
     if (request.method === "DELETE") {
       const url = new URL(request.url);
       const id = url.searchParams.get("id");

@@ -30,6 +30,10 @@ export interface TaskCreateInput {
   notifyRule: NotifyRule;
 }
 
+export interface TaskUpdateInput extends TaskCreateInput {
+  id: string;
+}
+
 // ==================== Log Types ====================
 
 export interface LogEntry {
