@@ -74,6 +74,8 @@ export async function POST(request: NextRequest) {
             lastRunTime: null,
             lastResponseTime: null,
             lastStatusCode: null,
+            lastNotifiedStatus: null,
+            lastNotifiedAt: null,
             createdAt: now,
             updatedAt: now,
         };

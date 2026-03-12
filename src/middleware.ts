@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken, COOKIE_NAME } from "@/lib/auth";
 
 // 不需要验证的公开路径
-const PUBLIC_PATHS = ["/login", "/status", "/api/auth", "/api/cron", "/api/status", "/internal/kv"];
+const PUBLIC_PATHS = ["/login", "/status", "/api/auth", "/api/cron", "/api/status", "/api/cron-meta", "/internal/kv"];
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;

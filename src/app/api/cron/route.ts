@@ -1,16 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { TaskConfig, ApiResponse, CronResult } from "@/types";
 import { pingUrl, pingResultToLogEntry, pingResultToCronResult, scheduleToMs } from "@/lib/pinger";
 import { sendTelegramNotification } from "@/lib/telegram";
-import { loadTask, loadTaskIds, loadTaskLogs, saveTask, saveTaskLogs } from "@/lib/task-store";
+import { loadCronMeta, loadTask, loadTaskIds, loadTaskLogs, saveCronMeta, saveTask, saveTaskLogs } from "@/lib/task-store";
 
 const MAX_LOG_ENTRIES = 50;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
+        const startedAt = Date.now();
         const now = Date.now();
         const taskIds = await loadTaskIds();
         const results: CronResult[] = [];
+        const source = request.headers.get("x-cron-source") || request.headers.get("user-agent") || "unknown";
 
         // Collect tasks that need to run
         const tasksToRun: TaskConfig[] = [];
@@ -72,26 +74,52 @@ export async function GET() {
                     lastRunTime: now,
                     lastResponseTime: pingResult.responseTime,
                     lastStatusCode: pingResult.statusCode,
+                    lastNotifiedStatus: task.lastNotifiedStatus ?? null,
+                    lastNotifiedAt: task.lastNotifiedAt ?? null,
                     updatedAt: now,
                 };
-                await saveTask(updatedTask);
 
                 // Build cron result
                 const cronResult = pingResultToCronResult(task, pingResult);
+                cronResult.previousStatus = previousStatus;
+                cronResult.currentStatus = newStatus;
                 results.push(cronResult);
 
-                // Send notification based on rule
+                const isFailure = newStatus === "down" && previousStatus !== "down";
+                const isRecovery = previousStatus === "down" && newStatus === "up";
                 const shouldNotify =
                     task.notifyRule === "always" ||
-                    (task.notifyRule === "on_fail" && previousStatus !== newStatus);
+                    (task.notifyRule === "on_fail" && (isFailure || isRecovery));
+
+                if (isFailure) {
+                    cronResult.transition = "failure";
+                } else if (isRecovery) {
+                    cronResult.transition = "recovery";
+                } else {
+                    cronResult.transition = "info";
+                }
 
                 if (shouldNotify) {
                     await sendTelegramNotification(cronResult).catch((err) =>
                         console.error(`[Cron] TG notification failed for ${task.name}:`, err)
                     );
+                    updatedTask.lastNotifiedStatus = newStatus;
+                    updatedTask.lastNotifiedAt = now;
                 }
+
+                await saveTask(updatedTask);
             }
         }
+
+        await saveCronMeta({
+            ...(await loadCronMeta()),
+            lastTriggerAt: Date.now(),
+            lastTriggerOk: true,
+            lastTriggerSource: source,
+            lastTriggerError: null,
+            lastExecutedCount: results.length,
+            lastDurationMs: Date.now() - startedAt,
+        });
 
         return NextResponse.json({
             success: true,
@@ -102,6 +130,15 @@ export async function GET() {
         } satisfies ApiResponse);
     } catch (error) {
         console.error("[Cron] Fatal error:", error);
+        await saveCronMeta({
+            ...(await loadCronMeta()),
+            lastTriggerAt: Date.now(),
+            lastTriggerOk: false,
+            lastTriggerSource: request.headers.get("x-cron-source") || request.headers.get("user-agent") || "unknown",
+            lastTriggerError: error instanceof Error ? error.message : "Cron execution failed",
+            lastExecutedCount: 0,
+            lastDurationMs: 0,
+        }).catch(() => undefined);
         return NextResponse.json(
             {
                 success: false,
