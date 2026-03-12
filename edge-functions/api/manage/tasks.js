@@ -45,6 +45,8 @@ export async function onRequest(context) {
         lastRunTime: null,
         lastResponseTime: null,
         lastStatusCode: null,
+        lastNotifiedStatus: null,
+        lastNotifiedAt: null,
         createdAt: now,
         updatedAt: now,
       };

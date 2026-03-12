@@ -1,5 +1,5 @@
 import { json } from "../lib/json.js";
-import { loadTask, loadTaskIds, loadTaskLogs, saveTask, saveTaskLogs } from "../lib/store.js";
+import { loadCronMeta, loadTask, loadTaskIds, loadTaskLogs, saveCronMeta, saveTask, saveTaskLogs } from "../lib/store.js";
 import { getKV, pingTask, scheduleToMs, sendTelegramNotification } from "../lib/runtime.js";
 
 const MAX_LOG_ENTRIES = 50;
@@ -12,9 +12,11 @@ export async function onRequestGet(context) {
   }
 
   try {
+    const startedAt = Date.now();
     const now = Date.now();
     const taskIds = await loadTaskIds(kv);
     const results = [];
+    const source = context.request.headers.get("x-cron-source") || context.request.headers.get("user-agent") || "unknown";
 
     for (const id of taskIds) {
       const task = await loadTask(kv, id);
@@ -55,9 +57,10 @@ export async function onRequestGet(context) {
         lastRunTime: now,
         lastResponseTime: ping.responseTime,
         lastStatusCode: ping.statusCode,
+        lastNotifiedStatus: task.lastNotifiedStatus ?? null,
+        lastNotifiedAt: task.lastNotifiedAt ?? null,
         updatedAt: now,
       };
-      await saveTask(kv, updatedTask);
 
       const result = {
         taskId: task.id,
@@ -66,18 +69,47 @@ export async function onRequestGet(context) {
         success: ping.success,
         statusCode: ping.statusCode,
         responseTime: ping.responseTime,
+        previousStatus,
+        currentStatus: nextStatus,
         errorMessage: ping.errorMessage,
       };
       results.push(result);
 
-      const shouldNotify = task.notifyRule === "always" || (task.notifyRule === "on_fail" && previousStatus !== nextStatus);
+      const isFailure = nextStatus === "down" && previousStatus !== "down";
+      const isRecovery = previousStatus === "down" && nextStatus === "up";
+      result.transition = isFailure ? "failure" : isRecovery ? "recovery" : "info";
+
+      const shouldNotify = task.notifyRule === "always" || (task.notifyRule === "on_fail" && (isFailure || isRecovery));
       if (shouldNotify) {
         await sendTelegramNotification(context.env, result).catch(() => undefined);
+        updatedTask.lastNotifiedStatus = nextStatus;
+        updatedTask.lastNotifiedAt = now;
       }
+
+      await saveTask(kv, updatedTask);
     }
+
+    await saveCronMeta(kv, {
+      ...(await loadCronMeta(kv)),
+      lastTriggerAt: Date.now(),
+      lastTriggerOk: true,
+      lastTriggerSource: source,
+      lastTriggerError: null,
+      lastExecutedCount: results.length,
+      lastDurationMs: Date.now() - startedAt,
+    });
 
     return json({ success: true, data: { executed: results.length, results } });
   } catch (error) {
+    await saveCronMeta(kv, {
+      ...(await loadCronMeta(kv)),
+      lastTriggerAt: Date.now(),
+      lastTriggerOk: false,
+      lastTriggerSource: context.request.headers.get("x-cron-source") || context.request.headers.get("user-agent") || "unknown",
+      lastTriggerError: error instanceof Error ? error.message : "Cron execution failed",
+      lastExecutedCount: 0,
+      lastDurationMs: 0,
+    }).catch(() => undefined);
     return json({ success: false, error: error instanceof Error ? error.message : "Cron execution failed" }, 500);
   }
 }
