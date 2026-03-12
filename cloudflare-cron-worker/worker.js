@@ -6,11 +6,15 @@ function deriveBaseUrl(env) {
     return null;
   }
 
-  const url = new URL(cronUrl);
-  url.pathname = "";
-  url.search = "";
-  url.hash = "";
-  return url.toString().replace(/\/$/, "");
+  try {
+    const url = new URL(cronUrl);
+    url.pathname = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
 }
 
 function deriveApiUrl(env, path) {
