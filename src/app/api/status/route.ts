@@ -40,7 +40,7 @@ export async function GET() {
                 lastStatusCode: task.lastStatusCode,
                 lastRunTime: task.lastRunTime,
                 uptimePercent,
-                recentLogs: logs.slice(-24), // last 24 for sparkline chart
+                recentLogs: logs.slice(-5),
             });
         }
 

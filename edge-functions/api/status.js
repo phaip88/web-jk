@@ -32,7 +32,7 @@ export async function onRequestGet(context) {
         lastStatusCode: task.lastStatusCode,
         lastRunTime: task.lastRunTime,
         uptimePercent,
-        recentLogs: logs.slice(-24),
+        recentLogs: logs.slice(-5),
       });
     }
 
