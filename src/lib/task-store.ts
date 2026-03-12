@@ -1,7 +1,8 @@
 import { kv } from "@/lib/kv";
-import { LogEntry, TaskConfig } from "@/types";
+import { CronMeta, LogEntry, TaskConfig } from "@/types";
 
 const TASK_LIST_KEY = "task_list";
+const CRON_META_KEY = "cron_meta";
 
 function legacyTaskInfoKey(id: string): string {
   return `task:info:${id}`;
@@ -77,4 +78,18 @@ export async function saveTaskLogs(taskId: string, logs: LogEntry[]): Promise<vo
 export async function deleteTaskLogs(taskId: string): Promise<void> {
   await kv.delete(taskLogKey(taskId));
   await kv.delete(legacyTaskLogKey(taskId)).catch(() => undefined);
+}
+
+export async function loadCronMeta(): Promise<CronMeta> {
+  return (await kv.getJSON<CronMeta>(CRON_META_KEY)) ?? {
+    lastTriggerAt: null,
+    lastTriggerOk: false,
+    lastTriggerError: null,
+    lastExecutedCount: 0,
+    lastDurationMs: 0,
+  };
+}
+
+export async function saveCronMeta(meta: CronMeta): Promise<void> {
+  await kv.putJSON(CRON_META_KEY, meta);
 }

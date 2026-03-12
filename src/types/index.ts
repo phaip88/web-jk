@@ -16,6 +16,8 @@ export interface TaskConfig {
   lastRunTime: number | null;      // epoch ms
   lastResponseTime: number | null; // ms
   lastStatusCode: number | null;
+  lastNotifiedStatus?: TaskStatus | null;
+  lastNotifiedAt?: number | null;
   createdAt: number;               // epoch ms
   updatedAt: number;               // epoch ms
 }
@@ -50,11 +52,24 @@ export interface ApiResponse<T = unknown> {
 export interface CronResult {
   taskId: string;
   taskName: string;
+  url?: string;
   success: boolean;
   statusCode: number | null;
   responseTime: number;
+  transition?: "failure" | "recovery" | "info";
+  currentStatus?: TaskStatus;
+  previousStatus?: TaskStatus;
   errorType?: string;
   errorMessage?: string;
+}
+
+export interface CronMeta {
+  lastTriggerAt: number | null;
+  lastTriggerOk: boolean;
+  lastTriggerSource?: string;
+  lastTriggerError?: string | null;
+  lastExecutedCount?: number;
+  lastDurationMs?: number;
 }
 
 // ==================== Auth Types ====================

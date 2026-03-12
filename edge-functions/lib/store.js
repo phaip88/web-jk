@@ -1,4 +1,5 @@
 const TASK_LIST_KEY = "task_list";
+const CRON_META_KEY = "cron_meta";
 
 function taskInfoKey(id) {
   return `task_info_${id}`;
@@ -51,4 +52,18 @@ export async function saveTaskLogs(kv, id, logs) {
 
 export async function deleteTaskLogs(kv, id) {
   await kv.delete(taskLogKey(id));
+}
+
+export async function loadCronMeta(kv) {
+  return readJson(kv, CRON_META_KEY, {
+    lastTriggerAt: null,
+    lastTriggerOk: false,
+    lastTriggerError: null,
+    lastExecutedCount: 0,
+    lastDurationMs: 0,
+  });
+}
+
+export async function saveCronMeta(kv, meta) {
+  await kv.put(CRON_META_KEY, JSON.stringify(meta));
 }
