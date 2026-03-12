@@ -4,6 +4,32 @@ export type TaskMethod = "GET" | "POST" | "HEAD";
 export type TaskSchedule = "single" | "1m" | "5m" | "10m" | "30m" | "60m";
 export type NotifyRule = "on_fail" | "always" | "never";
 export type TaskStatus = "up" | "down" | "pending" | "paused";
+export type SuccessRuleMode = "any_http" | "2xx_3xx" | "custom_codes";
+export type IntervalUnit = "minutes" | "hours";
+
+export interface SuccessRuleConfig {
+  mode: SuccessRuleMode;
+  customCodes?: number[];
+}
+
+export interface IntervalScheduleConfig {
+  enabled: boolean;
+  value: number;
+  unit: IntervalUnit;
+}
+
+export interface FixedTimeScheduleConfig {
+  enabled: boolean;
+  month: number | null;
+  day: number | null;
+  hour: number;
+  minute: number;
+}
+
+export interface ScheduleConfig {
+  interval: IntervalScheduleConfig;
+  fixedTime: FixedTimeScheduleConfig;
+}
 
 export interface TaskConfig {
   id: string;
@@ -11,7 +37,9 @@ export interface TaskConfig {
   url: string;
   method: TaskMethod;
   schedule: TaskSchedule;
+  scheduleConfig?: ScheduleConfig;
   notifyRule: NotifyRule;
+  successRule?: SuccessRuleConfig;
   status: TaskStatus;
   lastRunTime: number | null;      // epoch ms
   lastResponseTime: number | null; // ms
@@ -26,8 +54,10 @@ export interface TaskCreateInput {
   name: string;
   url: string;
   method: TaskMethod;
-  schedule: TaskSchedule;
+  schedule?: TaskSchedule;
+  scheduleConfig?: ScheduleConfig;
   notifyRule: NotifyRule;
+  successRule?: SuccessRuleConfig;
 }
 
 export interface TaskUpdateInput extends TaskCreateInput {
