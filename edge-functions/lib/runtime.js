@@ -144,10 +144,10 @@ export async function pingTask(task) {
     });
 
     return {
-      success: response.ok,
+      success: true,
       statusCode: response.status,
       responseTime: Date.now() - startedAt,
-      errorMessage: response.ok ? undefined : `HTTP ${response.status}`,
+      errorMessage: undefined,
     };
   } catch (error) {
     return {

@@ -2,7 +2,7 @@ import { json } from "../lib/json.js";
 import { loadCronMeta, loadTask, loadTaskIds, loadTaskLogs, saveCronMeta, saveTask, saveTaskLogs } from "../lib/store.js";
 import { getKV, pingTask, scheduleToMs, sendTelegramNotification } from "../lib/runtime.js";
 
-const MAX_LOG_ENTRIES = 50;
+const MAX_LOG_ENTRIES = 5;
 
 export async function onRequestGet(context) {
   const kv = getKV(context);
@@ -75,11 +75,10 @@ export async function onRequestGet(context) {
       };
       results.push(result);
 
-      const isFailure = nextStatus === "down" && previousStatus !== "down";
       const isRecovery = previousStatus === "down" && nextStatus === "up";
-      result.transition = isFailure ? "failure" : isRecovery ? "recovery" : "info";
+      result.transition = nextStatus === "down" ? "failure" : isRecovery ? "recovery" : "info";
 
-      const shouldNotify = task.notifyRule === "always" || (task.notifyRule === "on_fail" && (isFailure || isRecovery));
+      const shouldNotify = task.notifyRule === "always" || (task.notifyRule === "on_fail" && (nextStatus === "down" || isRecovery));
       if (shouldNotify) {
         await sendTelegramNotification(context.env, result).catch(() => undefined);
         updatedTask.lastNotifiedStatus = nextStatus;

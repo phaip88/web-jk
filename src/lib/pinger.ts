@@ -33,14 +33,14 @@ export async function pingUrl(task: TaskConfig): Promise<PingResult> {
         const responseTime = Date.now() - startTime;
         clearTimeout(timer);
 
-        const success = response.status >= 200 && response.status < 400;
+        const success = true;
 
         return {
             statusCode: response.status,
             responseTime,
             success,
-            errorType: success ? undefined : `HTTP_${response.status}`,
-            errorMessage: success ? undefined : response.statusText,
+            errorType: undefined,
+            errorMessage: undefined,
         };
     } catch (error: unknown) {
         clearTimeout(timer);

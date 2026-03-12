@@ -4,7 +4,7 @@ import { pingUrl, pingResultToLogEntry, pingResultToCronResult, scheduleToMs } f
 import { sendTelegramNotification } from "@/lib/telegram";
 import { loadCronMeta, loadTask, loadTaskIds, loadTaskLogs, saveCronMeta, saveTask, saveTaskLogs } from "@/lib/task-store";
 
-const MAX_LOG_ENTRIES = 50;
+const MAX_LOG_ENTRIES = 5;
 
 export async function GET(request: NextRequest) {
     try {
@@ -85,13 +85,12 @@ export async function GET(request: NextRequest) {
                 cronResult.currentStatus = newStatus;
                 results.push(cronResult);
 
-                const isFailure = newStatus === "down" && previousStatus !== "down";
                 const isRecovery = previousStatus === "down" && newStatus === "up";
                 const shouldNotify =
                     task.notifyRule === "always" ||
-                    (task.notifyRule === "on_fail" && (isFailure || isRecovery));
+                    (task.notifyRule === "on_fail" && (newStatus === "down" || isRecovery));
 
-                if (isFailure) {
+                if (newStatus === "down") {
                     cronResult.transition = "failure";
                 } else if (isRecovery) {
                     cronResult.transition = "recovery";
